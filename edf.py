@@ -5,6 +5,7 @@ import mariadb
 import requests
 import os
 import cred_edf
+import cred_mariadb
 
 SAVE_LOCATION = "C:\\OctopusBills\\"
 
@@ -245,7 +246,7 @@ def process_bill(in_reader, in_bill_reference, in_bill_date):
     return 0
 
 
-mydb = mariadb.connect(host=cred_edf.maria_host, user=cred_edf.maria_user, password=cred_edf.maria_password)
+mydb = mariadb.connect(host=cred_mariadb.maria_host, user=cred_mariadb.maria_user, password=cred_mariadb.maria_password)
 
 for account in get_accounts():
     account_number = account.get("number", None)

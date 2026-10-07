@@ -4,8 +4,10 @@ import re
 import mariadb
 import requests
 import os
+import cred_eon
+import cred_mariadb
 
-SAVE_LOCATION = "Q:\\"
+SAVE_LOCATION = "C:\\OctopusBills\\"
 
 
 months = {"January": 1,
@@ -34,7 +36,7 @@ short_months = {"Jan.": 1,
                 "Nov.": 11,
                 "Dec.": 12}
 
-endpoint = "https://api.octopus.energy/v1/graphql/"
+endpoint = "https://api.eonnext-kraken.energy/v1/graphql/"
 
 
 # TODO - proper classes and methods!
@@ -71,13 +73,13 @@ def get_jwt(force: bool = False):
         _jwt = (
             run_query(
                 """
-                mutation krakenTokenAuthentication($email: String!, $password: String!) {
-                    obtainKrakenToken(input: {email: $email, password: $password}) {
+                mutation krakenTokenAuthentication($APIKey: String!) {
+                    obtainKrakenToken(input: {APIKey: $APIKey}) {
                         token
                     }
                 }
                 """,
-                {"email": "octopus@tedds.org", "password": "m9KSIg1JRo&N"},
+                {"APIKey": cred_eon.APIKey},
                 with_auth=False,
             )
                 .get("data", {})
@@ -164,8 +166,8 @@ def process_bill(in_reader, in_bill_reference, in_bill_date):
 
         pdf_page = in_reader.pages[first_day_page]
         text_content = pdf_page.extract_text().split()
-        if text_content[38] == "meter":
-            meter_number = text_content[39]
+        if text_content[55] == "meter":
+            meter_number = text_content[56]
 
         first_day_page = first_day_page + 1
 
@@ -196,18 +198,18 @@ def process_bill(in_reader, in_bill_reference, in_bill_date):
 
         text_content = pdf_page.extract_text().split()
 
-        month_number = months[text_content[34]]
-        day_of_month = re.split("[a-z]", text_content[33])[0]
-        slot_date = text_content[35] + "-" + f"{month_number}" + "-" + day_of_month
+        month_number = months[text_content[51]]
+        day_of_month = re.split("[a-z]", text_content[50])[0]
+        slot_date = text_content[52] + "-" + f"{month_number}" + "-" + day_of_month
         number_slots = 48
 
         # Check if clocks go back
         clocks_going_back = False
-        if text_content[105] == "01:00":
+        if text_content[113] == "01:00":
             clocks_going_back = True
             number_slots = 50
 
-        if text_content[93] == "02:00":
+        if text_content[101] == "02:00":
             number_slots = 46
             this_values = (account_number, in_bill_reference, slot_date,
                            "01:00", text_content[84], "0.00", "0.000")
@@ -219,10 +221,10 @@ def process_bill(in_reader, in_bill_reference, in_bill_date):
         for half_hour in range(number_slots):
             this_values = (
                 account_number, bill_reference, slot_date,
-                text_content[81 + half_hour * 6],
-                text_content[84 + half_hour * 6],
-                text_content[85 + half_hour * 6],
-                text_content[86 + half_hour * 6])
+                text_content[93 + half_hour * 6],
+                text_content[96 + half_hour * 6],
+                text_content[97 + half_hour * 6],
+                text_content[98 + half_hour * 6])
 
             if clocks_going_back:
                 if half_hour in (2, 3):
@@ -230,12 +232,12 @@ def process_bill(in_reader, in_bill_reference, in_bill_date):
                 elif half_hour in (4, 5):
                     this_values = (
                         account_number, in_bill_reference, slot_date,
-                        text_content[81 + half_hour * 6],
-                        text_content[84 + half_hour * 6],
-                        float(text_content[85 + half_hour * 6]) + float(
-                            text_content[85 + (half_hour - 2) * 6]),
-                        float(text_content[86 + half_hour * 6]) + float(
-                            text_content[86 + (half_hour - 2) * 6]))
+                        text_content[93 + half_hour * 6],
+                        text_content[96 + half_hour * 6],
+                        float(text_content[97 + half_hour * 6]) + float(
+                            text_content[97 + (half_hour - 2) * 6]),
+                        float(text_content[98 + half_hour * 6]) + float(
+                            text_content[98 + (half_hour - 2) * 6]))
 
             my_cursor.execute(sql, this_values)
 
@@ -244,7 +246,7 @@ def process_bill(in_reader, in_bill_reference, in_bill_date):
     return 0
 
 
-mydb = mariadb.connect(host="192.168.1.177", user="octopus", password="octopus")
+mydb = mariadb.connect(host=cred_mariadb.maria_host, user=cred_mariadb.maria_user, password=cred_mariadb.maria_password)
 
 for account in get_accounts():
     account_number = account.get("number", None)
